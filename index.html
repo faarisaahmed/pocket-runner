@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pocket Runner</title>
+<meta name="theme-color" content="#0f1115">
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel2: #1e222b; --border: #2a2f3a;
+    --text: #e6e8ec; --muted: #8b93a3; --accent: #6ea8fe; --ok: #5dd39e; --err: #ff6b6b;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f6f7f9; --panel:#fff; --panel2:#f0f2f5; --border:#dde1e7; --text:#1b1f27; --muted:#667085; --accent:#2f6fde; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 15px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body { display: flex; flex-direction: column; height: 100dvh; }
+  header { display: flex; align-items: center; gap: 8px; padding: 10px 16px;
+    padding-top: max(10px, env(safe-area-inset-top)); background: var(--panel); border-bottom: 1px solid var(--border); }
+  header h1 { font-size: 16px; margin: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  header small { color: var(--muted); font-weight: 400; }
+  button, .btn { appearance: none; border: 1px solid var(--border); background: var(--panel2); color: var(--text);
+    padding: 8px 12px; border-radius: 8px; font: inherit; font-size: 14px; cursor: pointer; text-decoration: none; white-space: nowrap; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .5; }
+  nav.tabs { display: flex; background: var(--panel); border-bottom: 1px solid var(--border); }
+  nav.tabs button { flex: 1; border: 0; border-radius: 0; background: none; padding: 10px; color: var(--muted); border-bottom: 2px solid transparent; }
+  nav.tabs button.active { color: var(--text); border-bottom-color: var(--accent); }
+  main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .view { display: none; flex: 1; min-height: 0; flex-direction: column; }
+  .view.active { display: flex; }
+  #fileList { overflow: auto; padding: 8px 16px 24px; }
+  .proj { margin-top: 12px; }
+  .proj h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 8px 0 6px; }
+  .file { display: flex; align-items: center; gap: 10px; padding: 12px; margin: 4px 0; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 10px; cursor: pointer; }
+  .file .ext { font: 11px var(--mono); padding: 2px 6px; border-radius: 4px; background: var(--panel2); color: var(--muted); min-width: 38px; text-align: center; }
+  .file .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file .has-log { font-size: 11px; color: var(--ok); }
+  .empty { color: var(--muted); padding: 24px 0; text-align: center; }
+  .toolbar { display: flex; gap: 6px; padding: 8px 16px; background: var(--panel); border-bottom: 1px solid var(--border); overflow-x: auto; align-items: center; }
+  .toolbar .path { font: 12px var(--mono); color: var(--muted); flex: 1; min-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stage { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  iframe.preview { flex: 1; border: 0; background: #fff; width: 100%; }
+  pre.code, pre.out { margin: 0; padding: 12px 16px; font: 12.5px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; overflow: auto; }
+  pre.code { flex: 1; background: var(--bg); }
+  pre.out { flex: 1; background: #0b0d10; color: #d7dae0; min-height: 120px; }
+  pre.out .err { color: var(--err); } pre.out .sys { color: var(--muted); }
+  .split { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .split > * { flex: 1; min-height: 0; }
+  .split iframe.preview { flex: 2; }
+  .split pre.out { border-top: 1px solid var(--border); }
+  textarea { flex: 1; min-height: 0; width: 100%; resize: none; border: 0; outline: 0; padding: 12px 16px;
+    background: var(--bg); color: var(--text); font: 13px/1.5 var(--mono); }
+  select { font: inherit; font-size: 14px; padding: 7px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel2); color: var(--text); }
+  .status { font-size: 12px; color: var(--muted); padding: 6px 16px; }
+  .settings { padding: 16px; overflow: auto; }
+  .settings label { display: block; margin: 14px 0 4px; font-size: 13px; color: var(--muted); }
+  .settings input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font: 14px var(--mono); }
+  .settings p { color: var(--muted); font-size: 13px; }
+  code { font-family: var(--mono); font-size: .9em; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Pocket Runner <small id="repoLabel"></small></h1>
+  <button id="refreshBtn" title="Reload file list">↻</button>
+</header>
+<nav class="tabs">
+  <button data-tab="files" class="active">Files</button>
+  <button data-tab="run">Run</button>
+  <button data-tab="paste">Paste</button>
+  <button data-tab="settings">⚙</button>
+</nav>
+<main>
+  <section class="view active" id="view-files">
+    <div class="status" id="buildStatus"></div>
+    <div id="fileList"><div class="empty">Loading…</div></div>
+  </section>
+
+  <section class="view" id="view-run">
+    <div class="toolbar">
+      <span class="path" id="runPath">No file selected</span>
+      <button class="primary" id="runBtn">▶ Run</button>
+      <button id="srcBtn">Source</button>
+      <button id="logBtn" style="display:none">Actions log</button>
+      <a class="btn" id="openBtn" target="_blank" style="display:none">Open ↗</a>
+    </div>
+    <div class="stage" id="stage"><div class="empty">Pick a file from the Files tab.</div></div>
+  </section>
+
+  <section class="view" id="view-paste">
+    <div class="toolbar">
+      <select id="pasteLang">
+        <option value="html">HTML</option>
+        <option value="python">Python</option>
+        <option value="js">JavaScript</option>
+      </select>
+      <span class="path"></span>
+      <button id="pasteClear">Clear</button>
+      <button class="primary" id="pasteRun">▶ Run</button>
+    </div>
+    <textarea id="pasteBox" spellcheck="false" autocapitalize="off" autocomplete="off"
+      placeholder="Paste code from Claude here, then Run."></textarea>
+  </section>
+
+  <section class="view" id="view-settings">
+    <div class="settings">
+      <label>Repository (owner/name)</label>
+      <input id="setRepo" placeholder="auto-detected from URL">
+      <label>Branch</label>
+      <input id="setBranch" placeholder="main">
+      <label>GitHub token (optional)</label>
+      <input id="setToken" type="password" placeholder="github_pat_…">
+      <p>Normally files load from this Pages site, which updates about a minute after each push.
+        Turn on <b>Live mode</b> to read straight from the GitHub API so you see changes right away.
+        That's limited to 60 requests/hour without a token. A read-only fine-grained token raises the limit
+        and works for private repos. The token is saved only in this browser.</p>
+      <label><input type="checkbox" id="setLive" style="width:auto"> Live mode (GitHub API)</label>
+      <p><button class="primary" id="saveSettings">Save</button></p>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const store = {
+    get(k, d) { try { return localStorage.getItem('pr_' + k) ?? d; } catch { return d; } },
+    set(k, v) { try { localStorage.setItem('pr_' + k, v); } catch {} },
+  };
+
+  // ---------- config ----------
+  function detectRepo() {
+    const m = location.hostname.match(/^([^.]+)\.github\.io$/);
+    if (!m) return '';
+    const seg = location.pathname.split('/').filter(Boolean)[0];
+    return seg && !seg.includes('.') ? `${m[1]}/${seg}` : `${m[1]}/${m[1]}.github.io`;
+  }
+  const cfg = {
+    get repo() { return store.get('repo', '') || detectRepo(); },
+    get branch() { return store.get('branch', '') || 'main'; },
+    get token() { return store.get('token', ''); },
+    get live() { return store.get('live', '0') === '1'; },
+  };
+  $('#setRepo').value = store.get('repo', '');
+  $('#setRepo').placeholder = detectRepo() || 'owner/repo';
+  $('#setBranch').value = store.get('branch', '');
+  $('#setToken').value = cfg.token;
+  $('#setLive').checked = cfg.live;
+  $('#saveSettings').onclick = () => {
+    store.set('repo', $('#setRepo').value.trim());
+    store.set('branch', $('#setBranch').value.trim());
+    store.set('token', $('#setToken').value.trim());
+    store.set('live', $('#setLive').checked ? '1' : '0');
+    showTab('files'); loadFiles();
+  };
+
+  // ---------- tabs ----------
+  function showTab(name) {
+    document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+    document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
+  }
+  document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+
+  // ---------- file source ----------
+  const siteBase = new URL('.', location.href).href;
+  const apiHeaders = () => cfg.token ? { Authorization: `Bearer ${cfg.token}` } : {};
+  let files = [];            // [{path}]
+  let fileSet = new Set();
+
+  async function listFiles() {
+    if (cfg.live && cfg.repo) {
+      const r = await fetch(`https://api.github.com/repos/${cfg.repo}/git/trees/${cfg.branch}?recursive=1`, { headers: apiHeaders() });
+      if (!r.ok) throw new Error(`GitHub API ${r.status}: ${(await r.json().catch(() => ({}))).message || ''}`);
+      const j = await r.json();
+      return { files: j.tree.filter(t => t.type === 'blob' && /^(projects|outputs)\//.test(t.path) && !t.path.endsWith('.gitkeep')),
+               note: 'Live from GitHub API' };
+    }
+    const r = await fetch(siteBase + 'manifest.json?t=' + Date.now());
+    if (!r.ok) throw new Error('manifest.json not found. Has the Actions workflow run yet?');
+    const j = await r.json();
+    const ago = Math.round((Date.now() / 1000 - j.built) / 60);
+    return { files: j.files, note: `Site built ${ago < 1 ? 'just now' : ago + ' min ago'} · ${j.sha.slice(0, 7)}` };
+  }
+
+  async function readFile(path) {
+    if (cfg.live && cfg.repo) {
+      const r = await fetch(`https://api.github.com/repos/${cfg.repo}/contents/${encodeURI(path)}?ref=${cfg.branch}`,
+        { headers: { ...apiHeaders(), Accept: 'application/vnd.github.raw' } });
+      if (!r.ok) throw new Error(`GitHub API ${r.status}`);
+      return r.text();
+    }
+    const r = await fetch(siteBase + encodeURI(path) + '?t=' + Date.now());
+    if (!r.ok) throw new Error(`${r.status} loading ${path}`);
+    return r.text();
+  }
+
+  // ---------- file list ----------
+  const extOf = p => (p.match(/\.([^./]+)$/) || [, ''])[1].toLowerCase();
+  const logPathFor = p => 'outputs/' + p.replace(/\.py$/, '.log');
+
+  async function loadFiles() {
+    $('#repoLabel').textContent = cfg.repo ? '· ' + cfg.repo : '';
+    $('#fileList').innerHTML = '<div class="empty">Loading…</div>';
+    try {
+      const res = await listFiles();
+      files = res.files; fileSet = new Set(files.map(f => f.path));
+      $('#buildStatus').textContent = res.note;
+      renderList();
+    } catch (e) {
+      $('#buildStatus').textContent = '';
+      $('#fileList').innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+    }
+  }
+
+  function renderList() {
+    const groups = {};
+    for (const f of files) {
+      if (!f.path.startsWith('projects/')) continue;
+      const parts = f.path.split('/');
+      const proj = parts.length > 2 ? parts[1] : '(root)';
+      (groups[proj] ||= []).push(f.path);
+    }
+    const names = Object.keys(groups).sort();
+    if (!names.length) { $('#fileList').innerHTML = '<div class="empty">No projects yet. Ask Claude to add some under <code>projects/</code>.</div>'; return; }
+    $('#fileList').innerHTML = names.map(n => `
+      <div class="proj"><h2>${esc(n)}</h2>
+        ${groups[n].map(p => {
+          const rel = p.split('/').slice(n === '(root)' ? 1 : 2).join('/');
+          const log = p.endsWith('.py') && fileSet.has(logPathFor(p));
+          return `<div class="file" data-path="${esc(p)}"><span class="ext">${esc(extOf(p) || '—')}</span>
+            <span class="name">${esc(rel)}</span>${log ? '<span class="has-log">● log</span>' : ''}</div>`;
+        }).join('')}
+      </div>`).join('');
+    document.querySelectorAll('.file').forEach(el => el.onclick = () => openFile(el.dataset.path));
+  }
+
+  // ---------- run view ----------
+  let current = null; // {path, code, kind}
+  const kindOf = p => ({ html: 'html', htm: 'html', py: 'python', js: 'js', mjs: 'js' })[extOf(p)] || 'text';
+
+  async function openFile(path) {
+    showTab('run');
+    $('#runPath').textContent = path;
+    $('#stage').innerHTML = '<div class="empty">Loading…</div>';
+    const kind = kindOf(path);
+    $('#runBtn').style.display = kind === 'text' ? 'none' : '';
+    $('#logBtn').style.display = fileSet.has(logPathFor(path)) ? '' : 'none';
+    const open = $('#openBtn');
+    if (kind === 'html' && !cfg.live) { open.href = siteBase + path; open.style.display = ''; } else open.style.display = 'none';
+    try {
+      const code = await readFile(path);
+      current = { path, code, kind };
+      if (kind === 'html') run(); else showSource();
+    } catch (e) { $('#stage').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+  }
+
+  function showSource() {
+    if (!current) return;
+    $('#stage').innerHTML = '';
+    const pre = document.createElement('pre'); pre.className = 'code'; pre.textContent = current.code;
+    $('#stage').appendChild(pre);
+  }
+
+  async function showLog() {
+    if (!current) return;
+    $('#stage').innerHTML = '';
+    const out = makeOut();
+    try { out.textContent = await readFile(logPathFor(current.path)); }
+    catch (e) { out.textContent = e.message; }
+  }
+
+  function run() { if (current) runCode(current.code, current.kind, current.path); }
+  $('#runBtn').onclick = run;
+  $('#srcBtn').onclick = showSource;
+  $('#logBtn').onclick = showLog;
+
+  function makeOut(parent = $('#stage')) {
+    const pre = document.createElement('pre'); pre.className = 'out';
+    parent.appendChild(pre); return pre;
+  }
+  function write(out, text, cls) {
+    const span = document.createElement('span'); if (cls) span.className = cls;
+    span.textContent = text; out.appendChild(span); out.scrollTop = out.scrollHeight;
+  }
+
+  // ---------- runners ----------
+  function runCode(code, kind, path) {
+    $('#stage').innerHTML = '';
+    if (kind === 'html') return runHTML(code, path);
+    if (kind === 'js') return runJS(code);
+    if (kind === 'python') return runPython(code, path);
+  }
+
+  function runHTML(code, path) {
+    const f = document.createElement('iframe'); f.className = 'preview';
+    if (path && !cfg.live) {
+      f.src = siteBase + path + '?t=' + Date.now();   // served URL so relative css/js/images work
+    } else {
+      // pasted or live-mode code: inject <base> so relative links resolve against the project folder
+      const base = path ? `https://raw.githack.com/${cfg.repo}/${cfg.branch}/${path.replace(/[^/]+$/, '')}` : '';
+      f.srcdoc = (base ? `<base href="${base}">` : '') + code;
+    }
+    $('#stage').appendChild(f);
+  }
+
+  function runJS(code) {
+    const wrap = document.createElement('div'); wrap.className = 'split';
+    $('#stage').appendChild(wrap);
+    const out = makeOut(wrap);
+    const f = document.createElement('iframe');
+    f.setAttribute('sandbox', 'allow-scripts'); f.style.display = 'none';
+    const id = Math.random().toString(36).slice(2);
+    const onMsg = e => {
+      if (e.data?.id !== id) return;
+      write(out, e.data.text + '\n', e.data.level === 'error' ? 'err' : e.data.level === 'sys' ? 'sys' : '');
+    };
+    window.addEventListener('message', onMsg);
+    f.srcdoc = `<script>
+      const send=(level,args)=>parent.postMessage({id:${JSON.stringify(id)},level,text:args.map(a=>{
+        if(a instanceof Error) return a.stack||String(a);
+        if(typeof a==='object'){try{return JSON.stringify(a,null,2)}catch{return String(a)}}
+        return String(a)}).join(' ')},'*');
+      ['log','info','warn','debug'].forEach(k=>console[k]=(...a)=>send('log',a));
+      console.error=(...a)=>send('error',a);
+      window.onerror=(m,s,l,c,e)=>send('error',[e||m]);
+      window.onunhandledrejection=e=>send('error',[e.reason]);
+      (async()=>{ try { ` + code.replace(/<\/script/gi, '<\\/script') + `
+      ; send('sys',['— done —']); } catch(e){ send('error',[e]); } })();
+    <\/script>`;
+    write(out, '▶ running JavaScript…\n', 'sys');
+    wrap.appendChild(f);
+  }
+
+  // Pyodide: loaded on first use, then cached
+  let pyodideP = null;
+  function getPyodide(out) {
+    if (!pyodideP) {
+      write(out, 'Loading Python (first run takes a few seconds)…\n', 'sys');
+      pyodideP = new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js';
+        s.onload = () => loadPyodide().then(res, rej);
+        s.onerror = () => rej(new Error('Failed to load Pyodide'));
+        document.head.appendChild(s);
+      }).catch(e => { pyodideP = null; throw e; });
+    }
+    return pyodideP;
+  }
+
+  async function runPython(code, path) {
+    const out = makeOut();
+    $('#runBtn').disabled = $('#pasteRun').disabled = true;
+    try {
+      const py = await getPyodide(out);
+      py.setStdout({ batched: t => write(out, t + '\n') });
+      py.setStderr({ batched: t => write(out, t + '\n', 'err') });
+      py.setStdin({ stdin: () => prompt('Python input():') ?? '' });
+      write(out, `▶ ${path || 'pasted code'}\n`, 'sys');
+      await py.loadPackagesFromImports(code, { messageCallback: m => write(out, m + '\n', 'sys') });
+      // matplotlib: render figures as images into the output
+      if (/\bmatplotlib\b/.test(code)) {
+        await py.runPythonAsync(`
+import matplotlib; matplotlib.use("agg")
+import matplotlib.pyplot as _plt, io as _io, base64 as _b64, js as _js
+def _show(*a, **k):
+    for n in _plt.get_fignums():
+        b = _io.BytesIO(); _plt.figure(n).savefig(b, format="png", bbox_inches="tight"); _js._pr_img(_b64.b64encode(b.getvalue()).decode())
+    _plt.close("all")
+_plt.show = _show`);
+      }
+      window._pr_img = b64 => { const img = new Image(); img.src = 'data:image/png;base64,' + b64; img.style.maxWidth = '100%'; img.style.background = '#fff'; out.appendChild(img); out.appendChild(document.createTextNode('\n')); };
+      const t0 = performance.now();
+      await py.runPythonAsync(code);
+      write(out, `— done in ${((performance.now() - t0) / 1000).toFixed(2)}s —\n`, 'sys');
+    } catch (e) {
+      write(out, String(e.message || e) + '\n', 'err');
+    } finally {
+      $('#runBtn').disabled = $('#pasteRun').disabled = false;
+    }
+  }
+
+  // ---------- paste tab ----------
+  const box = $('#pasteBox');
+  box.value = store.get('paste', '');
+  $('#pasteLang').value = store.get('pasteLang', 'html');
+  box.oninput = () => store.set('paste', box.value);
+  $('#pasteLang').onchange = () => store.set('pasteLang', $('#pasteLang').value);
+  $('#pasteClear').onclick = () => { box.value = ''; store.set('paste', ''); };
+  $('#pasteRun').onclick = () => {
+    let code = box.value, lang = $('#pasteLang').value;
+    // strip a ``` fence if pasted from chat
+    const m = code.match(/```(\w+)?\n([\s\S]*?)```/);
+    if (m) { code = m[2]; const l = (m[1] || '').toLowerCase(); if (/^(py|python)$/.test(l)) lang = 'python'; else if (/^(js|javascript)$/.test(l)) lang = 'js'; else if (l === 'html') lang = 'html'; }
+    current = { path: null, code, kind: lang };
+    $('#runPath').textContent = 'pasted ' + lang;
+    $('#logBtn').style.display = $('#openBtn').style.display = 'none';
+    $('#runBtn').style.display = '';
+    showTab('run'); runCode(code, lang, null);
+  };
+
+  function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
+
+  $('#refreshBtn').onclick = loadFiles;
+  loadFiles();
+})();
+</script>
+</body>
+</html>

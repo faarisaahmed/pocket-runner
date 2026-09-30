@@ -1,0 +1,121 @@
+name: Run & Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      run_all:
+        description: "Run every Python file (not just changed ones)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Find Python files to run
+        id: find
+        run: |
+          BEFORE="${{ github.event.before }}"
+          if [ "${{ inputs.run_all }}" = "true" ] || [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BEFORE" 2>/dev/null; then
+            find projects -name '*.py' -type f | sort > to_run.txt
+          else
+            git diff --name-only --diff-filter=AM "$BEFORE" "${{ github.sha }}" -- 'projects/**.py' 'projects/*.py' > to_run.txt || true
+          fi
+          # Skip files that opt out with "# @browser-only" anywhere in the first 5 lines
+          : > filtered.txt
+          while IFS= read -r f; do
+            [ -f "$f" ] || continue
+            head -n 5 "$f" | grep -q '@browser-only' && continue
+            echo "$f" >> filtered.txt
+          done < to_run.txt
+          echo "Files to run:"; cat filtered.txt
+          echo "count=$(wc -l < filtered.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
+
+      - name: Run Python files
+        if: steps.find.outputs.count != '0'
+        run: |
+          while IFS= read -r f; do
+            dir=$(dirname "$f")
+            out="outputs/${f%.py}.log"
+            mkdir -p "$(dirname "$out")"
+            if [ -f "$dir/requirements.txt" ]; then
+              pip install -q -r "$dir/requirements.txt" > /dev/null 2>&1 || echo "pip install failed for $dir/requirements.txt"
+            fi
+            start=$(date +%s)
+            {
+              echo "# $f"
+              echo "# ran: $(date -u +%Y-%m-%dT%H:%M:%SZ)  commit: ${GITHUB_SHA::7}"
+              echo "----"
+            } > "$out"
+            (cd "$dir" && timeout 300 python "$(basename "$f")" < /dev/null) >> "$out" 2>&1
+            code=$?
+            echo "----" >> "$out"
+            echo "# exit code: $code  ($(( $(date +%s) - start ))s)" >> "$out"
+            [ $code -eq 124 ] && echo "# TIMED OUT after 300s" >> "$out"
+            echo "=== $f (exit $code) ==="; cat "$out"
+          done < filtered.txt
+
+      - name: Commit outputs back to repo
+        if: steps.find.outputs.count != '0'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add outputs
+          if ! git diff --cached --quiet; then
+            git commit -m "Add run outputs [skip ci]"
+            git pull --rebase origin main && git push origin HEAD:main
+          fi
+
+      - name: Build file manifest
+        run: |
+          python - <<'EOF'
+          import json, os, subprocess, time
+          files = []
+          for root in ("projects", "outputs"):
+              for dp, dn, fn in os.walk(root):
+                  for n in fn:
+                      if n == ".gitkeep": continue
+                      p = os.path.join(dp, n)
+                      files.append({"path": p, "size": os.path.getsize(p)})
+          files.sort(key=lambda f: f["path"])
+          repo = os.environ.get("GITHUB_REPOSITORY", "")
+          sha = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+          json.dump({"repo": repo, "sha": sha, "built": int(time.time()), "files": files},
+                    open("manifest.json", "w"), indent=1)
+          print(f"{len(files)} files in manifest")
+          EOF
+
+      - name: Prepare site
+        run: |
+          mkdir _site
+          cp -r index.html manifest.json projects outputs _site/
+          touch _site/.nojekyll
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4
