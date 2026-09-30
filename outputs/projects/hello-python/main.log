@@ -1,0 +1,8 @@
+# projects/hello-python/main.py
+# ran: 2026-09-30T23:51:40Z  commit: 7aa12bc
+----
+Hello from Python 3.12.14 on Linux
+squares: [0, 1, 4, 9, 16, 25, 36, 49, 64, 81]
+sum: 285
+----
+# exit code: 0  (1s)
