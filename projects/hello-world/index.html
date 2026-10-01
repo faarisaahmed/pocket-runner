@@ -2,32 +2,140 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Hello World</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>Hello World - Tiny Metroidvania</title>
   <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-    }
+    html, body { height: 100%; margin: 0; }
     body {
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 10px; background: #05060d; color: #cfd6ff;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: #ffffff;
-      color: #111111;
+      -webkit-user-select: none; user-select: none; touch-action: none;
     }
-    h1 {
-      font-size: clamp(3rem, 15vw, 8rem);
-      margin: 0;
-      text-align: center;
+    h1 { margin: 0; font-size: 1rem; letter-spacing: .15em; text-transform: uppercase; }
+    canvas {
+      width: min(100vw, 640px, calc((100dvh - 120px) * 5 / 3));
+      aspect-ratio: 320 / 192; image-rendering: pixelated; background: #0b0d1a;
     }
-    @media (prefers-color-scheme: dark) {
-      body { background: #111111; color: #ffffff; }
+    #pad { display: flex; justify-content: space-between; width: min(100vw, 640px); padding: 0 12px; box-sizing: border-box; }
+    #pad div { display: flex; gap: 10px; }
+    button {
+      min-width: 72px; height: 56px; font-size: 1.2rem; font-weight: 700;
+      border: 2px solid #55689c; border-radius: 12px; background: #1a2144; color: #cfd6ff;
+      touch-action: none;
     }
+    button:active { background: #33417f; }
   </style>
 </head>
 <body>
   <h1>Hello World</h1>
+  <canvas id="c" width="320" height="192"></canvas>
+  <div id="pad">
+    <div><button data-k="l">&#9664;</button><button data-k="r">&#9654;</button></div>
+    <button data-k="j" style="min-width:110px">JUMP</button>
+  </div>
+<script>
+const T = 16, W = 20, H = 12;
+const mk = f => Array.from({length: H}, (_, y) => Array.from({length: W}, (_, x) => f(x, y) ? '#' : '.').join(''));
+const rooms = [
+  mk((x, y) => y == 0 || y >= 10 || x == 0 || (y == 8 && x >= 8 && x <= 10)),   // 1: start + orb
+  mk((x, y) => y == 0 || y >= 10 || (x >= 10 && x <= 11 && y >= 5)),            // 2: tall wall
+  mk((x, y) => y == 0 || y >= 10 || x == 19)                                      // 3: relic
+];
+const orb = {r: 0, x: 152, y: 118}, relic = {r: 2, x: 264, y: 152};
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const p = {x: 24, y: 146, vx: 0, vy: 0, w: 10, h: 14, ground: false, jumps: 0, face: 1};
+const keys = {l: 0, r: 0, j: 0};
+let room = 0, hasDJ = false, won = false, msg = 'Arrows / A D to move, Space to jump', msgT = 300, jPrev = false, tick = 0;
+
+const solid = (tx, ty) => ty < 0 || ty >= H ? true : tx < 0 || tx >= W ? false : rooms[room][ty][tx] == '#';
+function hit(x, y) {
+  for (let tx = Math.floor(x / T); tx <= Math.floor((x + p.w - .01) / T); tx++)
+    for (let ty = Math.floor(y / T); ty <= Math.floor((y + p.h - .01) / T); ty++)
+      if (solid(tx, ty)) return true;
+  return false;
+}
+
+function update() {
+  tick++;
+  const dir = keys.r - keys.l;
+  p.vx = dir * 1.7; if (dir) p.face = dir;
+  if (keys.j && !jPrev) {
+    if (p.ground) { p.vy = -6.6; p.jumps = 1; }
+    else if (hasDJ && p.jumps < 2) { p.vy = -6.6; p.jumps = 2; }
+  }
+  jPrev = keys.j;
+  p.vy = Math.min(p.vy + 0.4, 8);
+
+  p.x += p.vx;
+  if (hit(p.x, p.y)) p.x -= p.vx;
+  p.y += p.vy; p.ground = false;
+  if (hit(p.x, p.y)) {
+    p.y -= p.vy; p.y = Math.floor(p.y);
+    const s = Math.sign(p.vy) || 1;
+    while (!hit(p.x, p.y + s)) p.y += s;
+    if (p.vy > 0) { p.ground = true; p.jumps = 0; }
+    p.vy = 0;
+  }
+
+  const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
+  if (cx > W * T) { if (rooms[room + 1]) { room++; p.x -= W * T; } else p.x = W * T - p.w; }
+  else if (cx < 0) { if (rooms[room - 1]) { room--; p.x += W * T; } else p.x = 0; }
+
+  if (room == orb.r && !hasDJ && Math.abs(cx - orb.x) < 10 && Math.abs(cy - orb.y) < 10) {
+    hasDJ = true; msg = 'Double Jump unlocked! Press jump in mid-air.'; msgT = 300;
+  }
+  if (room == relic.r && !won && Math.abs(cx - relic.x) < 10 && Math.abs(cy - relic.y) < 10) {
+    won = true; msg = 'You found the ancient relic! Thanks for playing.'; msgT = 1e9;
+  }
+  if (msgT > 0) msgT--;
+}
+
+function draw() {
+  ctx.fillStyle = '#0b0d1a'; ctx.fillRect(0, 0, 320, 192);
+  rooms[room].forEach((row, ty) => {
+    for (let tx = 0; tx < W; tx++) if (row[tx] == '#') {
+      ctx.fillStyle = '#3a4a7a'; ctx.fillRect(tx * T, ty * T, T, T);
+      ctx.fillStyle = '#55689c'; ctx.fillRect(tx * T, ty * T, T, 2);
+    }
+  });
+  const pulse = Math.sin(tick / 10) * 1.5;
+  if (room == orb.r && !hasDJ) {
+    ctx.fillStyle = '#4de3ff'; ctx.beginPath(); ctx.arc(orb.x, orb.y + pulse, 5, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.fillRect(orb.x - 1, orb.y - 2 + pulse, 2, 2);
+  }
+  if (room == relic.r && !won) {
+    ctx.fillStyle = '#ffd34d'; ctx.beginPath();
+    ctx.moveTo(relic.x, relic.y - 7 + pulse); ctx.lineTo(relic.x + 6, relic.y + pulse);
+    ctx.lineTo(relic.x, relic.y + 7 + pulse); ctx.lineTo(relic.x - 6, relic.y + pulse); ctx.fill();
+  }
+  ctx.fillStyle = '#ffb347'; ctx.fillRect(p.x, p.y, p.w, p.h);
+  ctx.fillStyle = '#222'; ctx.fillRect(p.x + (p.face > 0 ? 6 : 2), p.y + 3, 2, 3);
+  ctx.font = '8px monospace'; ctx.textAlign = 'left'; ctx.fillStyle = '#fff';
+  ctx.fillText('ROOM ' + (room + 1) + '/3' + (hasDJ ? '  [DOUBLE JUMP]' : ''), 4, 11);
+  if (msgT > 0) {
+    ctx.textAlign = 'center'; ctx.fillStyle = '#000'; ctx.fillText(msg, 161, 41);
+    ctx.fillStyle = '#ffe9a8'; ctx.fillText(msg, 160, 40);
+  }
+}
+
+let last = 0, acc = 0;
+function loop(t) {
+  acc += Math.min(t - last, 100); last = t;
+  while (acc >= 1000 / 60) { update(); acc -= 1000 / 60; }
+  draw(); requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+const kmap = {ArrowLeft: 'l', KeyA: 'l', ArrowRight: 'r', KeyD: 'r', ArrowUp: 'j', KeyW: 'j', Space: 'j', KeyZ: 'j'};
+addEventListener('keydown', e => { const k = kmap[e.code]; if (k) { keys[k] = 1; e.preventDefault(); } });
+addEventListener('keyup', e => { const k = kmap[e.code]; if (k) keys[k] = 0; });
+document.querySelectorAll('#pad button').forEach(b => {
+  const k = b.dataset.k;
+  b.addEventListener('pointerdown', e => { e.preventDefault(); keys[k] = 1; });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(n => b.addEventListener(n, () => keys[k] = 0));
+});
+addEventListener('contextmenu', e => e.preventDefault());
+</script>
 </body>
 </html>
