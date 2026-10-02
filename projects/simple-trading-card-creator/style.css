@@ -1,0 +1,32 @@
+:root{
+  --bg:#12141c; --panel:#1c2030; --line:#2c3350; --text:#eef1fa; --muted:#9aa3c0; --accent:#ffb703;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;padding:16px;padding-bottom:40px}
+header{text-align:center;margin-bottom:16px}
+h1{font-size:1.4rem;margin:0 0 4px}
+header p{margin:0;color:var(--muted);font-size:.9rem}
+main{max-width:980px;margin:0 auto;display:grid;gap:18px}
+@media(min-width:820px){main{grid-template-columns:340px 1fr;align-items:start}.preview{position:sticky;top:16px}}
+.preview{display:flex;flex-direction:column;align-items:center;gap:12px}
+#card{width:100%;max-width:340px;height:auto;border-radius:14px;box-shadow:0 12px 32px rgba(0,0,0,.55);background:#000}
+.group{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}
+.group h2{margin:0 0 10px;font-size:1rem;color:var(--accent)}
+label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:10px}
+label.check{color:var(--text);font-size:.95rem;margin:10px 0 0}
+input[type=text],textarea,select{width:100%;margin-top:4px;padding:10px;border-radius:8px;border:1px solid var(--line);background:#11141f;color:var(--text);font-size:16px;font-family:inherit}
+textarea{resize:vertical}
+input[type=range]{width:100%;margin-top:6px}
+.row{display:flex;gap:10px}
+.row>*{flex:1;min-width:0}
+.stats{margin-bottom:10px}
+.stats .row{margin-bottom:6px}
+.upload{border:2px dashed var(--line);border-radius:12px;text-align:center;padding:18px 10px;cursor:pointer;color:var(--text);font-size:.95rem}
+.upload input{display:none}
+.upload:active{background:#222844}
+button.primary{background:var(--accent);color:#1a1300;font-weight:700;font-size:1rem;border:0;border-radius:12px;padding:13px 22px;width:100%;max-width:340px;cursor:pointer}
+button.primary:active{transform:scale(.98)}
+.templates{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tpl{border:2px solid transparent;border-radius:10px;padding:4px;background:#11141f;cursor:pointer;text-align:center;color:var(--muted);font-size:.7rem}
+.tpl canvas{width:100%;height:auto;border-radius:6px;display:block;margin-bottom:4px}
+.tpl.active{border-color:var(--accent);color:var(--text)}

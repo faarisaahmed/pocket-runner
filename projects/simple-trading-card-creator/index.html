@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simple Trading Card Creator</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<header>
+  <h1>🃏 Simple Trading Card Creator</h1>
+  <p>Upload an image, pick a template, make a card.</p>
+</header>
+
+<main>
+  <section class="preview">
+    <canvas id="card" width="750" height="1050"></canvas>
+    <button id="download" class="primary">⬇ Download PNG</button>
+  </section>
+
+  <section class="controls">
+    <div class="group">
+      <h2>1 · Image</h2>
+      <label class="upload">
+        <input type="file" id="file" accept="image/*">
+        <span id="fileLabel">📷 Tap to upload an image</span>
+      </label>
+      <label>Zoom <input type="range" id="zoom" min="1" max="3" step="0.01" value="1"></label>
+      <label>Move left / right <input type="range" id="ox" min="-0.5" max="0.5" step="0.01" value="0"></label>
+      <label>Move up / down <input type="range" id="oy" min="-0.5" max="0.5" step="0.01" value="0"></label>
+    </div>
+
+    <div class="group">
+      <h2>2 · Template</h2>
+      <div id="templates" class="templates"></div>
+      <label class="check"><input type="checkbox" id="holo"> ✨ Holo shine</label>
+    </div>
+
+    <div class="group">
+      <h2>3 · Details</h2>
+      <label>Name <input type="text" id="name" maxlength="28" value="Captain Whiskers"></label>
+      <div class="row">
+        <label>Type line <input type="text" id="type" maxlength="28" value="Legendary Cat"></label>
+        <label>HP / Level <input type="text" id="hp" maxlength="8" value="90"></label>
+      </div>
+      <label>Description <textarea id="desc" rows="3" maxlength="140">Nine lives, zero fear. Naps through every battle and still wins.</textarea></label>
+      <div class="stats">
+        <div class="row"><input type="text" id="l0" maxlength="6" value="ATK"><input type="text" id="v0" maxlength="5" value="72"></div>
+        <div class="row"><input type="text" id="l1" maxlength="6" value="DEF"><input type="text" id="v1" maxlength="5" value="55"></div>
+        <div class="row"><input type="text" id="l2" maxlength="6" value="SPD"><input type="text" id="v2" maxlength="5" value="88"></div>
+      </div>
+      <div class="row">
+        <label>Card number <input type="text" id="num" maxlength="10" value="007/100"></label>
+        <label>Rarity
+          <select id="rarity">
+            <option value="1">Common ★</option>
+            <option value="2">Uncommon ★★</option>
+            <option value="3" selected>Rare ★★★</option>
+            <option value="4">Legendary ★★★★</option>
+          </select>
+        </label>
+      </div>
+    </div>
+  </section>
+</main>
+<script src="./app.js"></script>
+</body>
+</html>
